@@ -1,3 +1,26 @@
 <resources>
     <string name="app_name">Weather</string>
+    <string name="na">Na</string>
+
+    <string name="retry">Reintentar</string>
+    <string name="feels_like_format">Sensación de %1$d°</string>
+    <string name="wind_speed_format_kmh">%1$d km/h</string>
+    <string name="rain_mm_format">%1$.1fmm</string>
+
+    <string name="label_pressure">Presión</string>
+    <string name="label_clouds">Nubes</string>
+    <string name="label_humidity">Humedad</string>
+    <string name="label_wind">Viento</string>
+    <string name="label_gusts">Rachas</string>
+
+    <string name="sunset_title">Puesta de sol</string>
+    <string name="sunset_label">Anochece</string>
+    <string name="sunrise_label">Amanece</string>
+
+    <string name="cd_settings">Ajustes</string>
+    <string name="cd_near_me">Cerca de mí</string>
+    <string name="cd_search">Buscar</string>
+    <string name="cd_share">Compartir</string>
+    <string name="cd_sunset">Puesta de sol</string>
+    <string name="cd_sunrise">Amanecer</string>
 </resources>

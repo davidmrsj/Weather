@@ -11,6 +11,6 @@ interface OpenWeatherService {
         @Query("lon") lon: Double,
         @Query("appid") apiKey: String,
         @Query("units") units: String = "metric",
-        @Query("lang") lang: String = "en"
+        @Query("lang") lang: String = "es"
     ): WeatherResponseDto
 }

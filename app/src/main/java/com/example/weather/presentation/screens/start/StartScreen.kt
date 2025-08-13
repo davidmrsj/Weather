@@ -43,7 +43,7 @@ fun StartScreen(onStart: () -> Unit) {
     ) {
         Image(
             painter = painterResource(id = R.drawable.logo_carreras),
-            contentDescription = "Logo Carreras",
+            contentDescription = null,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 68.dp)

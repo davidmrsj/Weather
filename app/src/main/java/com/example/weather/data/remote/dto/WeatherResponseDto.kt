@@ -9,6 +9,7 @@ data class WeatherResponseDto(
     val main: MainDto,
     val wind: WindDto,
     val clouds: CloudsDto,
+    val rain: RainDto,
     val sys: SysDto,
     val name: String,
     @SerialName("dt") val dt: Long
@@ -40,6 +41,11 @@ data class WindDto(
 @Serializable
 data class CloudsDto(
     val all: Int
+)
+
+@Serializable
+data class RainDto(
+    @SerialName("1h") val oneHour: Float? = null
 )
 
 @Serializable

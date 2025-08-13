@@ -16,5 +16,6 @@ data class Weather(
     val windGust: Double?,
     val sunrise: Long,
     val sunset: Long,
-    val lastUpdated: Long
+    val lastUpdated: Long,
+    val rainOneHour: Float?
 )

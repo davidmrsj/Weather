@@ -6,4 +6,5 @@ build
 app/build
 captures
 local.properties
+secrets.properties
 **/*.jks

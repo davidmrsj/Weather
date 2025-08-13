@@ -1,16 +1,29 @@
 package com.example.weather.core.utils
 
-import java.text.SimpleDateFormat
-import java.util.Date
+import android.util.Log
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 object TimeFormatter {
-    fun formatTime(seconds: Long): String {
+
+    const val TIME_24 = "HH:mm"
+    const val UPDATED = "d 'de' MMMM | HH:mm"
+
+    fun formatMillis(
+        seconds: Long?,
+        pattern: String,
+        locale: Locale = Locale.getDefault(),
+        zoneId: ZoneId = ZoneId.systemDefault()
+    ): String {
         return try {
-            val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
-            sdf.format(Date(seconds * 1000))
+            if (seconds == null || seconds <= 0L) return "--"
+            val formatter = DateTimeFormatter.ofPattern(pattern, locale)
+            Instant.ofEpochSecond(seconds).atZone(zoneId).format(formatter)
         } catch (e: Exception) {
-            "--:--"
+            Log.e("TimeFormatter", "Error formatting time", e)
+            "--/--"
         }
     }
 }

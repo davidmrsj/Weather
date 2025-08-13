@@ -1,6 +1,7 @@
 package com.example.weather.presentation.screens.weather
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,10 +18,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -30,35 +32,42 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.weather.R
+import com.example.weather.core.utils.TimeFormatter
+import com.example.weather.core.utils.TimeFormatter.TIME_24
+import com.example.weather.core.utils.TimeFormatter.UPDATED
 import com.example.weather.di.AppModule
 import com.example.weather.domain.model.Weather
 import com.example.weather.presentation.ui.theme.BluePrimary
 import com.example.weather.presentation.ui.theme.GreenBlue
 import com.example.weather.presentation.ui.theme.RedCloud
+import com.example.weather.presentation.ui.theme.TextBlack
 import com.example.weather.presentation.ui.theme.WhiteBorder
 import com.example.weather.presentation.ui.theme.YellowPressure
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
+import kotlin.math.min
 
 
 @Composable
@@ -83,17 +92,6 @@ fun WeatherScreen(state: WeatherUiState, onRetry: () -> Unit) {
     }
 }
 
-
-@Composable
-private fun WeatherLoading() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BluePrimary),
-        contentAlignment = Alignment.Center
-    ) { CircularProgressIndicator(color = Color.White) }
-}
-
 @Composable
 private fun WeatherError(message: String, onRetry: () -> Unit) {
     Box(
@@ -110,14 +108,10 @@ private fun WeatherError(message: String, onRetry: () -> Unit) {
     }
 }
 
-
 @Composable
 fun WeatherSuccess(weather: Weather) {
-    val updated =
-        SimpleDateFormat(
-            "d 'de' MMMM | HH:mm",
-            Locale.getDefault()
-        ).format(Date(weather.lastUpdated * 1000))
+    val updated = TimeFormatter.formatMillis(weather.lastUpdated, UPDATED)
+
     val temp = "${weather.temperature}°"
     val feelsLike = "Sensación de ${(weather.temperature - 1)}°"
     val description = weather.description.replaceFirstChar {
@@ -126,6 +120,8 @@ fun WeatherSuccess(weather: Weather) {
     val humidity = weather.humidity.coerceIn(0, 100)
     val pressure = weather.pressure
     val windSpeedKmh = (weather.windSpeed * 3.6f)
+    val rainMm: Float? = weather.rainOneHour
+    val windDeg = weather.windDeg
 
     Column(
         modifier = Modifier
@@ -135,33 +131,23 @@ fun WeatherSuccess(weather: Weather) {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
+        Spacer(Modifier.height(6.dp))
+        LocatorTrail()
+        Spacer(Modifier.height(10.dp))
         TopBar(city = weather.city)
 
         Spacer(Modifier.height(16.dp))
 
         Text(updated, color = Color.White, fontSize = 14.sp)
-        Spacer(Modifier.height(8.dp))
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                painter = painterResource(id = R.drawable.cielo_limpio),
-                contentDescription = null,
-                tint = Color.Unspecified,
-                modifier = Modifier.size(42.dp)
-            )
-            Spacer(Modifier.width(6.dp))
-            Text(temp, color = Color.White, style = MaterialTheme.typography.displaySmall)
-        }
-
-        Spacer(Modifier.height(4.dp))
-        Text(feelsLike, color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp)
-        Spacer(Modifier.height(6.dp))
-        Text(
-            description,
-            color = Color.White,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center
+        Spacer(Modifier.height(16.dp))
+        NowHeaderRow(
+            windKmh = windSpeedKmh,
+            rainMm = rainMm,
+            tempText = temp,
+            feelsLike = feelsLike,
+            description = description,
+            tMax = weather.tempMax.toInt(),
+            tMin = weather.tempMin.toInt()
         )
 
         Spacer(Modifier.height(18.dp))
@@ -196,11 +182,19 @@ fun WeatherSuccess(weather: Weather) {
         WindCard(
             wind = windSpeedKmh,
             gusts = windSpeedKmh * 1.8f,
-            degrees = 260f,
+            degrees = windDeg,
             directionLabel = "ne"
         )
+        Spacer(Modifier.height(12.dp))
+
+        SunCard(
+            sunsetEpoch = weather.sunset,
+            sunriseEpoch = weather.sunrise
+        )
+
     }
 }
+
 
 @Composable
 private fun TopBar(city: String) {
@@ -251,6 +245,142 @@ private fun TopBar(city: String) {
     }
 }
 
+@Composable
+private fun LocatorTrail() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            painter = painterResource(id = R.drawable.near_me),
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(12.dp)
+        )
+        Spacer(Modifier.width(6.dp))
+        Dot()
+        Spacer(Modifier.width(6.dp))
+        Dot()
+    }
+}
+
+@Composable
+private fun Dot() {
+    Box(
+        modifier = Modifier
+            .size(6.dp)
+            .background(Color.White, CircleShape)
+    )
+}
+
+@Composable
+private fun NowHeaderRow(
+    windKmh: Float,
+    rainMm: Float?,
+    tempText: String,
+    tMax: Int,
+    tMin: Int,
+    feelsLike: String,
+    description: String,
+    iconRes: Int = R.drawable.cielo_limpio
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        Column(
+            modifier = Modifier.widthIn(min = 96.dp),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(painterResource(R.drawable.air), null, tint = Color.White)
+                Spacer(Modifier.width(6.dp))
+                Text("${windKmh.toInt()} km/h", color = Color.White, fontSize = 12.sp)
+            }
+            if (rainMm != null && rainMm > 0f) {
+                Spacer(Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        painterResource(R.drawable.rainy),
+                        null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("${rainMm}mm", color = Color.White, fontSize = 12.sp)
+                }
+            }
+        }
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painter = painterResource(iconRes),
+                    contentDescription = null,
+                    tint = Color.Unspecified,
+                    modifier = Modifier.size(42.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    tempText,
+                    color = Color.White,
+                    style = MaterialTheme.typography.displaySmall
+                )
+            }
+            Spacer(Modifier.height(2.dp))
+            Text(
+                feelsLike,
+                color = Color.White.copy(alpha = 0.85f),
+                fontSize = 14.sp,
+                maxLines = 1
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                description,
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+        }
+
+        Column(
+            modifier = Modifier.widthIn(min = 64.dp),
+            horizontalAlignment = Alignment.End
+        ) {
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(
+                    painter = painterResource(R.drawable.vertical_align_top),
+                    contentDescription = null,
+                    tint = Color.White
+                )
+                Spacer(Modifier.width(4.dp))
+                Text("$tMax°", color = Color.White, fontSize = 14.sp)
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    painter = painterResource(R.drawable.vertical_align_bottom),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier
+                        .width(16.dp)
+                        .height(18.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text("$tMin°", color = Color.White, fontSize = 14.sp)
+            }
+        }
+    }
+}
 
 @Composable
 private fun CurvedGauge(
@@ -339,7 +469,7 @@ private fun CurvedGaugeWithLabel(
 private fun WindCard(
     wind: Float,
     gusts: Float,
-    degrees: Float,
+    degrees: Int,
     directionLabel: String
 ) {
     Surface(
@@ -421,64 +551,174 @@ private fun WindCard(
 
 @Composable
 private fun Compass(
-    degrees: Float,
-    label: String
+    degrees: Int,
+    label: String,
+    bgRes: Int = R.drawable.brujula,
+    markerRes: Int = R.drawable.sol
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Canvas(modifier = Modifier.size(110.dp)) {
-            val radius = size.minDimension / 2f
-            val center = Offset(radius, radius)
+    val markerSize = 16.dp
+    val boxSizePx = remember { mutableStateOf(IntSize.Zero) }
+    val density = LocalDensity.current
 
-            drawCircle(
-                color = Color.White.copy(alpha = 0.85f),
-                radius = radius,
-                style = Stroke(width = 2.dp.toPx())
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .onGloballyPositioned { boxSizePx.value = it.size },
+            contentAlignment = Alignment.Center
+        ) {
+            Image(
+                painter = painterResource(bgRes),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize()
             )
 
-            val tickWidth = 2.dp.toPx()
-            val smallTick = radius * 0.08f
-            val bigTick = radius * 0.14f
-            val start = radius * 0.78f
-            for (i in 0 until 360 step 10) {
-                val r1 = start
-                val r2 = start + if (i % 30 == 0) bigTick else smallTick
-                val ang = Math.toRadians(i.toDouble())
-                val p1 = Offset(
-                    center.x + r1 * kotlin.math.cos(ang).toFloat(),
-                    center.y + r1 * kotlin.math.sin(ang).toFloat()
-                )
-                val p2 = Offset(
-                    center.x + r2 * kotlin.math.cos(ang).toFloat(),
-                    center.y + r2 * kotlin.math.sin(ang).toFloat()
-                )
-                drawLine(
-                    color = Color.White.copy(alpha = 0.8f),
-                    start = p1,
-                    end = p2,
-                    strokeWidth = tickWidth,
-                    cap = StrokeCap.Round
+            if (boxSizePx.value.width > 0) {
+                val w = boxSizePx.value.width.toFloat()
+                val h = boxSizePx.value.height.toFloat()
+                val cx = w / 2f
+                val cy = h / 2f
+                val r = min(cx, cy) * 0.72f
+
+                val ang = Math.toRadians((degrees - 90f).toDouble())
+                val px = cx + r * kotlin.math.cos(ang).toFloat()
+                val py = cy + r * kotlin.math.sin(ang).toFloat()
+
+                val markerHalf = with(density) { (markerSize / 2).toPx() }
+
+                Image(
+                    painter = painterResource(markerRes),
+                    contentDescription = null,
+                    modifier = Modifier
+                        .absoluteOffset(
+                            x = (px - markerHalf).toDp() / 2,
+                            y = (py - markerHalf).toDp() / 2
+                        )
+                        .size(markerSize)
                 )
             }
 
-            val needleLen = radius * 0.7f
-            val ang = Math.toRadians((degrees - 90).toDouble())
-            val end = Offset(
-                center.x + needleLen * kotlin.math.cos(ang).toFloat(),
-                center.y + needleLen * kotlin.math.sin(ang).toFloat()
-            )
-            drawLine(
-                color = Color(0xFFFF6D00),
-                start = center,
-                end = end,
-                strokeWidth = 4.dp.toPx(),
-                cap = StrokeCap.Round,
-                pathEffect = PathEffect.cornerPathEffect(8f)
-            )
-            drawCircle(Color(0xFFFF6D00), radius = 6.dp.toPx(), center = center)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = label.substringBefore(" "),
+                    color = TextBlack,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                val sub = label.substringAfter(" ", missingDelimiterValue = "").lowercase()
+                if (sub.isNotEmpty()) {
+                    Text(
+                        text = sub,
+                        color = TextBlack,
+                        fontSize = 12.sp
+                    )
+                }
+            }
         }
-        Text(label, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+
+        Spacer(Modifier.height(6.dp))
     }
 }
+
+@Composable
+private fun SunCard(
+    sunsetEpoch: Long,
+    sunriseEpoch: Long,
+) {
+    val sunset = TimeFormatter.formatMillis(sunsetEpoch, TIME_24)
+    val sunrise = TimeFormatter.formatMillis(sunriseEpoch, TIME_24)
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 2.dp)
+            .border(1.dp, WhiteBorder, RoundedCornerShape(14.dp)),
+        shape = RoundedCornerShape(14.dp),
+        color = Color.Transparent
+    ) {
+        Box(
+            modifier = Modifier
+                .border(1.dp, WhiteBorder, RoundedCornerShape(14.dp))
+                .padding(14.dp)
+        ) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.wb_twilight),
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Puesta de sol",
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 18.sp
+                    )
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(horizontalAlignment = Alignment.Start) {
+                        Row {
+                            Text(
+                                "Anochece ",
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                sunset,
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Icon(
+                            painter = painterResource(id = R.drawable.puesta_de_sol_mountain),
+                            contentDescription = "Puesta de sol",
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(46.dp)
+                        )
+                    }
+
+                    Column(horizontalAlignment = Alignment.End) {
+                        Row {
+                            Text(
+                                "Amanece ",
+                                color = Color.White.copy(alpha = 0.85f),
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                sunrise,
+                                color = Color.White,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Icon(
+                            painter = painterResource(id = R.drawable.puesta_de_sol),
+                            contentDescription = "Amanecer",
+                            tint = Color.Unspecified,
+                            modifier = Modifier.size(46.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun Float.toDp(): Dp = with(LocalDensity.current) { this@toDp.toDp() }
+
 
 
 private fun previewWeather() = Weather(
@@ -497,7 +737,8 @@ private fun previewWeather() = Weather(
     windGust = 12.0,
     sunrise = System.currentTimeMillis() / 1000 - 6 * 60 * 60,
     sunset = System.currentTimeMillis() / 1000 + 6 * 60 * 60,
-    lastUpdated = System.currentTimeMillis() / 1000
+    lastUpdated = System.currentTimeMillis() / 1000,
+    rainOneHour = 2.0f
 )
 
 @Preview(name = "Pantalla completa", showSystemUi = true)
@@ -532,9 +773,9 @@ private fun WindCardPreview() {
             .padding(16.dp)
     ) {
         WindCard(
-            wind = 18f,
-            gusts = 37f,
-            degrees = 260f,
+            wind = 3f,
+            gusts = 4f,
+            degrees = 57,
             directionLabel = "ne"
         )
     }
