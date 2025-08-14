@@ -2,6 +2,7 @@ package com.example.weather.presentation.screens.start
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -30,10 +31,19 @@ import com.example.weather.presentation.ui.theme.BluePrimary
 @Composable
 fun StartScreen(onStart: () -> Unit) {
     val context = LocalContext.current
+
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) onStart()
+        if (granted) {
+            onStart()
+        } else {
+            Toast.makeText(
+                context,
+                context.getString(R.string.location_permission_required_message),
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     Box(
@@ -56,7 +66,11 @@ fun StartScreen(onStart: () -> Unit) {
                     Manifest.permission.ACCESS_FINE_LOCATION
                 ) == PackageManager.PERMISSION_GRANTED
 
-                if (granted) onStart() else launcher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                if (granted) {
+                    onStart()
+                } else {
+                    launcher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                }
             },
             colors = ButtonDefaults.buttonColors(containerColor = Color.White),
             elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp),

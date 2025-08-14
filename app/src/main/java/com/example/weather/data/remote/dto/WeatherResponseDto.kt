@@ -9,7 +9,7 @@ data class WeatherResponseDto(
     val main: MainDto,
     val wind: WindDto,
     val clouds: CloudsDto,
-    val rain: RainDto,
+    val rain: RainDto? = null,
     val sys: SysDto,
     val name: String,
     @SerialName("dt") val dt: Long

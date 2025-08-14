@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.absoluteOffset
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,7 +24,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -64,11 +62,10 @@ import com.example.weather.presentation.ui.theme.BluePrimary
 import com.example.weather.presentation.ui.theme.GreenBlue
 import com.example.weather.presentation.ui.theme.RedCloud
 import com.example.weather.presentation.ui.theme.TextBlack
+import com.example.weather.presentation.ui.theme.Typografia
 import com.example.weather.presentation.ui.theme.WhiteBorder
 import com.example.weather.presentation.ui.theme.YellowPressure
 import java.util.Locale
-import kotlin.math.min
-
 
 @Composable
 fun WeatherRoute(
@@ -94,6 +91,7 @@ fun WeatherScreen(state: WeatherUiState, onRetry: () -> Unit) {
 
 @Composable
 private fun WeatherError(message: String, onRetry: () -> Unit) {
+    val localContext = LocalContext.current
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -101,27 +99,40 @@ private fun WeatherError(message: String, onRetry: () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(message, color = Color.White)
+            Text(
+                if (message.isBlank()) localContext.getString(R.string.na) else message,
+                color = Color.White
+            )
             Spacer(Modifier.height(8.dp))
-            Button(onClick = onRetry) { Text("Reintentar") }
+            Button(onClick = onRetry) { Text(localContext.getString(R.string.retry)) }
         }
     }
 }
 
 @Composable
 fun WeatherSuccess(weather: Weather) {
+    val localContext = LocalContext.current
+    val na = localContext.getString(R.string.na)
+
     val updated = TimeFormatter.formatMillis(weather.lastUpdated, UPDATED)
 
-    val temp = "${weather.temperature}°"
-    val feelsLike = "Sensación de ${(weather.temperature - 1)}°"
+    val temp =
+        if (weather.temperature.isNaN() || weather.temperature.isInfinite()) na else "${weather.temperature}°"
+    val feelsLike =
+        if (weather.temperature.isNaN() || weather.temperature.isInfinite()) na else localContext.getString(
+            R.string.feels_like_format,
+            (weather.temperature - 1).toInt()
+        )
     val description = weather.description.replaceFirstChar {
         if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
-    }
-    val humidity = weather.humidity.coerceIn(0, 100)
+    }.ifBlank { na }
+    val humidity = weather.humidity
     val pressure = weather.pressure
-    val windSpeedKmh = (weather.windSpeed * 3.6f)
+    val windSpeedKmh =
+        if (weather.windSpeed.isNaN() || weather.windSpeed.isInfinite()) Float.NaN else (weather.windSpeed * 3.6f)
     val rainMm: Float? = weather.rainOneHour
     val windDeg = weather.windDeg
+    val clouds = weather.clouds
 
     Column(
         modifier = Modifier
@@ -134,11 +145,11 @@ fun WeatherSuccess(weather: Weather) {
         Spacer(Modifier.height(6.dp))
         LocatorTrail()
         Spacer(Modifier.height(10.dp))
-        TopBar(city = weather.city)
+        TopBar(city = weather.city.ifBlank { na })
 
         Spacer(Modifier.height(16.dp))
 
-        Text(updated, color = Color.White, fontSize = 14.sp)
+        Text(updated, style = Typografia.lLabelRegular)
         Spacer(Modifier.height(16.dp))
         NowHeaderRow(
             windKmh = windSpeedKmh,
@@ -146,8 +157,8 @@ fun WeatherSuccess(weather: Weather) {
             tempText = temp,
             feelsLike = feelsLike,
             description = description,
-            tMax = weather.tempMax.toInt(),
-            tMin = weather.tempMin.toInt()
+            tMax = if (weather.tempMax.isNaN() || weather.tempMax.isInfinite()) Int.MIN_VALUE else weather.tempMax.toInt(),
+            tMin = if (weather.tempMin.isNaN() || weather.tempMin.isInfinite()) Int.MIN_VALUE else weather.tempMin.toInt()
         )
 
         Spacer(Modifier.height(18.dp))
@@ -160,19 +171,19 @@ fun WeatherSuccess(weather: Weather) {
             CurvedGaugeWithLabel(
                 value = ((pressure - 950f) / 100f).coerceIn(0f, 1f),
                 badgeText = "$pressure hPa",
-                label = "Presión",
+                label = localContext.getString(R.string.label_pressure),
                 progressColor = YellowPressure
             )
             CurvedGaugeWithLabel(
-                value = (humidity / 100f).coerceIn(0f, 1f),
-                badgeText = "${humidity}%",
-                label = "Nubes",
+                value = (clouds / 100f).coerceIn(0f, 1f),
+                badgeText = if (clouds in 0..100) "${clouds}%" else na,
+                label = localContext.getString(R.string.label_clouds),
                 progressColor = RedCloud
             )
             CurvedGaugeWithLabel(
                 value = (humidity / 100f).coerceIn(0f, 1f),
-                badgeText = "${humidity}%",
-                label = "Humedad",
+                badgeText = if (humidity in 0..100) "${humidity}%" else na,
+                label = localContext.getString(R.string.label_humidity),
                 progressColor = GreenBlue
             )
         }
@@ -180,10 +191,9 @@ fun WeatherSuccess(weather: Weather) {
         Spacer(Modifier.height(18.dp))
 
         WindCard(
-            wind = windSpeedKmh,
-            gusts = windSpeedKmh * 1.8f,
-            degrees = windDeg,
-            directionLabel = "ne"
+            wind = if (windSpeedKmh.isNaN()) Float.NaN else windSpeedKmh,
+            gusts = if (windSpeedKmh.isNaN()) Float.NaN else windSpeedKmh * 1.8f,
+            degrees = windDeg
         )
         Spacer(Modifier.height(12.dp))
 
@@ -191,10 +201,8 @@ fun WeatherSuccess(weather: Weather) {
             sunsetEpoch = weather.sunset,
             sunriseEpoch = weather.sunrise
         )
-
     }
 }
-
 
 @Composable
 private fun TopBar(city: String) {
@@ -226,7 +234,13 @@ private fun TopBar(city: String) {
                     tint = Color.White
                 )
                 Spacer(Modifier.width(8.dp))
-                Text(city, color = Color.White, modifier = Modifier.weight(1f), maxLines = 1)
+                Text(
+                    city,
+                    color = Color.White,
+                    style = Typografia.lLabelSemiBold,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1
+                )
                 Icon(
                     painter = painterResource(id = R.drawable.search),
                     contentDescription = null,
@@ -286,6 +300,8 @@ private fun NowHeaderRow(
     description: String,
     iconRes: Int = R.drawable.cielo_limpio
 ) {
+    val localContext = LocalContext.current
+    val na = localContext.getString(R.string.na)
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Top
@@ -297,7 +313,10 @@ private fun NowHeaderRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(painterResource(R.drawable.air), null, tint = Color.White)
                 Spacer(Modifier.width(6.dp))
-                Text("${windKmh.toInt()} km/h", color = Color.White, fontSize = 12.sp)
+                Text(
+                    if (windKmh.isNaN()) na else "${windKmh.toInt()} ${localContext.getString(R.string.unit_kmh)}",
+                    style = Typografia.mLabelRegular
+                )
             }
             if (rainMm != null && rainMm > 0f) {
                 Spacer(Modifier.height(6.dp))
@@ -309,7 +328,10 @@ private fun NowHeaderRow(
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(Modifier.width(6.dp))
-                    Text("${rainMm}mm", color = Color.White, fontSize = 12.sp)
+                    Text(
+                        localContext.getString(R.string.rain_mm_format, rainMm),
+                        style = Typografia.mLabelRegular
+                    )
                 }
             }
         }
@@ -329,24 +351,21 @@ private fun NowHeaderRow(
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    tempText,
+                    tempText.ifBlank { na },
                     color = Color.White,
-                    style = MaterialTheme.typography.displaySmall
+                    style = Typografia.xlSemiBold
                 )
             }
             Spacer(Modifier.height(2.dp))
             Text(
-                feelsLike,
-                color = Color.White.copy(alpha = 0.85f),
-                fontSize = 14.sp,
+                feelsLike.ifBlank { na },
+                style = Typografia.lLabelRegular,
                 maxLines = 1
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                description,
-                color = Color.White,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
+                description.ifBlank { na },
+                style = Typografia.lLabelSemiBold,
                 textAlign = TextAlign.Center,
                 maxLines = 1
             )
@@ -363,7 +382,7 @@ private fun NowHeaderRow(
                     tint = Color.White
                 )
                 Spacer(Modifier.width(4.dp))
-                Text("$tMax°", color = Color.White, fontSize = 14.sp)
+                Text("$tMax°", style = Typografia.mLabelRegular)
             }
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -395,10 +414,8 @@ private fun CurvedGauge(
         val diameter = size.toPx()
         val inset = thickness / 2f + 2f
         val arcRect = Rect(Offset(inset, inset), Size(diameter - inset * 2, diameter - inset * 2))
-
         val startAngle = 130f
         val sweep = 280f
-
         drawArc(
             color = trackColor,
             startAngle = startAngle,
@@ -408,7 +425,6 @@ private fun CurvedGauge(
             topLeft = arcRect.topLeft,
             size = arcRect.size
         )
-
         val sweepProgress = (sweep * progress).coerceIn(0f, sweep)
         if (sweepProgress > 0f) {
             drawArc(
@@ -420,7 +436,6 @@ private fun CurvedGauge(
                 topLeft = arcRect.topLeft,
                 size = arcRect.size
             )
-
             val angleRad = Math.toRadians((startAngle + sweepProgress).toDouble())
             val r = arcRect.width / 2f
             val center = arcRect.center
@@ -456,12 +471,11 @@ private fun CurvedGaugeWithLabel(
             ) {}
             Text(
                 badgeText.replace(" ", "\n"),
-                color = Color.White,
-                fontSize = 14.sp,
+                style = Typografia.sSemiBold,
                 textAlign = TextAlign.Center
             )
         }
-        Text(label, color = Color.White, fontWeight = FontWeight.SemiBold)
+        Text(label, style = Typografia.lLabelSemiBold)
     }
 }
 
@@ -469,9 +483,10 @@ private fun CurvedGaugeWithLabel(
 private fun WindCard(
     wind: Float,
     gusts: Float,
-    degrees: Int,
-    directionLabel: String
+    degrees: Int
 ) {
+    val localContext = LocalContext.current
+    val na = localContext.getString(R.string.na)
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -499,19 +514,26 @@ private fun WindCard(
                         tint = Color.White
                     )
                     Spacer(Modifier.width(8.dp))
-                    Text("Viento", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        localContext.getString(R.string.label_wind),
+                        style = Typografia.sHeadingSemiBold
+                    )
                 }
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        wind.toInt().toString(),
-                        color = Color.White,
-                        fontSize = 40.sp,
-                        fontWeight = FontWeight.Light,
+                        if (wind.isNaN()) na else wind.toInt().toString(),
+                        style = Typografia.lSemiBold,
                         modifier = Modifier.padding(end = 6.dp)
                     )
                     Column {
-                        Text("km/h", color = Color.White, fontSize = 12.sp)
-                        Text("Viento", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
+                        Text(
+                            if (wind.isNaN()) na else localContext.getString(R.string.unit_kmh),
+                            style = Typografia.sLabelRegular
+                        )
+                        Text(
+                            localContext.getString(R.string.label_wind),
+                            style = Typografia.sSemiBold
+                        )
                     }
                 }
                 HorizontalDivider(
@@ -521,15 +543,19 @@ private fun WindCard(
                 )
                 Row(verticalAlignment = Alignment.Bottom) {
                     Text(
-                        gusts.toInt().toString(),
-                        color = Color.White,
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.Medium,
+                        if (gusts.isNaN()) na else gusts.toInt().toString(),
+                        style = Typografia.lSemiBold,
                         modifier = Modifier.padding(end = 6.dp)
                     )
                     Column {
-                        Text("km/h", color = Color.White, fontSize = 12.sp)
-                        Text("Rachas", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
+                        Text(
+                            if (gusts.isNaN()) na else localContext.getString(R.string.unit_kmh),
+                            style = Typografia.sLabelRegular
+                        )
+                        Text(
+                            localContext.getString(R.string.label_gusts),
+                            style = Typografia.sSemiBold
+                        )
                     }
                 }
             }
@@ -543,7 +569,7 @@ private fun WindCard(
                     .border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Compass(degrees = degrees, label = "${degrees.toInt()}º $directionLabel")
+                Compass(label = "${degrees.toInt()}º")
             }
         }
     }
@@ -551,10 +577,8 @@ private fun WindCard(
 
 @Composable
 private fun Compass(
-    degrees: Int,
     label: String,
-    bgRes: Int = R.drawable.brujula,
-    markerRes: Int = R.drawable.sol
+    bgRes: Int = R.drawable.brujula
 ) {
     val markerSize = 16.dp
     val boxSizePx = remember { mutableStateOf(IntSize.Zero) }
@@ -572,31 +596,6 @@ private fun Compass(
                 modifier = Modifier.fillMaxSize()
             )
 
-            if (boxSizePx.value.width > 0) {
-                val w = boxSizePx.value.width.toFloat()
-                val h = boxSizePx.value.height.toFloat()
-                val cx = w / 2f
-                val cy = h / 2f
-                val r = min(cx, cy) * 0.72f
-
-                val ang = Math.toRadians((degrees - 90f).toDouble())
-                val px = cx + r * kotlin.math.cos(ang).toFloat()
-                val py = cy + r * kotlin.math.sin(ang).toFloat()
-
-                val markerHalf = with(density) { (markerSize / 2).toPx() }
-
-                Image(
-                    painter = painterResource(markerRes),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .absoluteOffset(
-                            x = (px - markerHalf).toDp() / 2,
-                            y = (py - markerHalf).toDp() / 2
-                        )
-                        .size(markerSize)
-                )
-            }
-
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = label.substringBefore(" "),
@@ -604,14 +603,6 @@ private fun Compass(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold
                 )
-                val sub = label.substringAfter(" ", missingDelimiterValue = "").lowercase()
-                if (sub.isNotEmpty()) {
-                    Text(
-                        text = sub,
-                        color = TextBlack,
-                        fontSize = 12.sp
-                    )
-                }
             }
         }
 
@@ -619,11 +610,13 @@ private fun Compass(
     }
 }
 
+
 @Composable
 private fun SunCard(
     sunsetEpoch: Long,
     sunriseEpoch: Long,
 ) {
+    val localContext = LocalContext.current
     val sunset = TimeFormatter.formatMillis(sunsetEpoch, TIME_24)
     val sunrise = TimeFormatter.formatMillis(sunriseEpoch, TIME_24)
 
@@ -650,10 +643,8 @@ private fun SunCard(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        text = "Puesta de sol",
-                        color = Color.White,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 18.sp
+                        text = localContext.getString(R.string.sunset_title),
+                        style = Typografia.sHeadingSemiBold
                     )
                 }
 
@@ -667,21 +658,18 @@ private fun SunCard(
                     Column(horizontalAlignment = Alignment.Start) {
                         Row {
                             Text(
-                                "Anochece ",
-                                color = Color.White.copy(alpha = 0.85f),
-                                fontSize = 14.sp
+                                localContext.getString(R.string.sunset_label) + " ",
+                                style = Typografia.mLabelRegular,
                             )
                             Text(
                                 sunset,
-                                color = Color.White,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
+                                style = Typografia.lLabelSemiBold
                             )
                         }
                         Spacer(Modifier.height(8.dp))
                         Icon(
                             painter = painterResource(id = R.drawable.puesta_de_sol_mountain),
-                            contentDescription = "Puesta de sol",
+                            contentDescription = localContext.getString(R.string.cd_sunset),
                             tint = Color.Unspecified,
                             modifier = Modifier.size(46.dp)
                         )
@@ -690,21 +678,18 @@ private fun SunCard(
                     Column(horizontalAlignment = Alignment.End) {
                         Row {
                             Text(
-                                "Amanece ",
-                                color = Color.White.copy(alpha = 0.85f),
-                                fontSize = 14.sp
+                                localContext.getString(R.string.sunrise_label) + " ",
+                                style = Typografia.lLabelRegular,
                             )
                             Text(
                                 sunrise,
-                                color = Color.White,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
+                                style = Typografia.lLabelSemiBold,
                             )
                         }
                         Spacer(Modifier.height(8.dp))
                         Icon(
                             painter = painterResource(id = R.drawable.puesta_de_sol),
-                            contentDescription = "Amanecer",
+                            contentDescription = localContext.getString(R.string.cd_sunrise),
                             tint = Color.Unspecified,
                             modifier = Modifier.size(46.dp)
                         )
@@ -715,11 +700,8 @@ private fun SunCard(
     }
 }
 
-
 @Composable
 private fun Float.toDp(): Dp = with(LocalDensity.current) { this@toDp.toDp() }
-
-
 
 private fun previewWeather() = Weather(
     city = "Valladolid, Valladolid",
@@ -750,6 +732,7 @@ private fun WeatherScreenPreview() {
 @Preview(name = "Gauge Curvo")
 @Composable
 private fun GaugePreview() {
+    val localContext = LocalContext.current
     Box(
         modifier = Modifier
             .background(BluePrimary)
@@ -758,7 +741,7 @@ private fun GaugePreview() {
         CurvedGaugeWithLabel(
             value = 0.82f,
             badgeText = "82%",
-            label = "Nubes",
+            label = localContext.getString(R.string.label_clouds),
             progressColor = GreenBlue
         )
     }
@@ -767,6 +750,7 @@ private fun GaugePreview() {
 @Preview(name = "Tarjeta Viento")
 @Composable
 private fun WindCardPreview() {
+    val localContext = LocalContext.current
     Box(
         modifier = Modifier
             .background(BluePrimary)
@@ -775,8 +759,7 @@ private fun WindCardPreview() {
         WindCard(
             wind = 3f,
             gusts = 4f,
-            degrees = 57,
-            directionLabel = "ne"
+            degrees = 57
         )
     }
 }
@@ -784,5 +767,6 @@ private fun WindCardPreview() {
 @Preview(name = "Error")
 @Composable
 private fun ErrorPreview() {
-    WeatherError("Error") {}
+    val localContext = LocalContext.current
+    WeatherError(localContext.getString(R.string.error_generic)) {}
 }

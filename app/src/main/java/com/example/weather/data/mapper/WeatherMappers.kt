@@ -20,5 +20,5 @@ fun WeatherResponseDto.toDomain(): Weather = Weather(
     sunrise = sys.sunrise,
     sunset = sys.sunset,
     lastUpdated = dt,
-    rainOneHour = rain.oneHour
+    rainOneHour = rain?.oneHour
 )

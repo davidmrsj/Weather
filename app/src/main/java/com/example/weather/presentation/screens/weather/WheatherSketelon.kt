@@ -25,6 +25,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -63,20 +65,24 @@ fun WeatherSkeletonScreen() {
 @Composable
 private fun shimmerBrush(
     base: Color = Color.White.copy(alpha = 0.15f),
-    highlight: Color = Color.White.copy(alpha = 0.35f),
+    highlight: Color = BluePrimary.copy(alpha = 0f),
 ): Brush {
     val transition = rememberInfiniteTransition(label = "shimmer")
     val anim by transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            tween(durationMillis = 1100, easing = LinearEasing)
+            tween(durationMillis = 1000, easing = LinearEasing)
         ),
         label = "offset"
     )
 
-    val startX = -400f + anim * 800f
-    val endX = startX + 300f
+    val screenWidthPx = with(LocalDensity.current) {
+        LocalConfiguration.current.screenWidthDp.dp.toPx()
+    }
+    val gradientWidth = screenWidthPx * 0.35f
+    val startX = -gradientWidth + anim * (screenWidthPx + gradientWidth * 2f)
+    val endX = startX + gradientWidth
 
     return Brush.linearGradient(
         colors = listOf(base, highlight, base),

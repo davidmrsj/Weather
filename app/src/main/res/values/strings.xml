@@ -23,4 +23,8 @@
     <string name="cd_share">Compartir</string>
     <string name="cd_sunset">Puesta de sol</string>
     <string name="cd_sunrise">Amanecer</string>
+    <string name="unit_kmh">km/h</string>
+    <string name="error_generic">Error desconocido</string>
+    <string name="location_permission_required_message">Es necesario aceptar los permisos de localización para continuar</string>
+
 </resources>
